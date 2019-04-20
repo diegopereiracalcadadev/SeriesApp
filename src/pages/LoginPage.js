@@ -1,5 +1,5 @@
 import React from 'react';
-import {View, StyleSheet, Button, Text, ActivityIndicator} from  'react-native';
+import {View, StyleSheet, Button, Text, ActivityIndicator, Alert} from  'react-native';
 import FormRow from '../components/FormRow';
 import { TextInput } from 'react-native-gesture-handler';
 import firebase from 'firebase';
@@ -36,6 +36,16 @@ export default class LoginPage extends React.Component{
                 return 'Senha incorreta';
             case 'auth/user-not-found':
                 return 'Usuário não encontrado';
+            case 'auth/user-disabled':
+                return 'user-disabled';
+            case 'auth/email-already-in-use':
+                return 'Thrown if there already exists an account with the given email address.';
+            case 'auth/invalid-email':
+                return 'Thrown if the email address is not valid';
+            case 'auth/operation-not-allowed':
+                return 'Thrown if email/password accounts are not enabled. Enable email/password accounts in the Firebase Console, under the Auth tab.';
+            case 'auth/weak-password':
+                return 'Senha fraca. Defina mais forte.';
             default:
                 return 'Erro desconhecido';
         }
@@ -63,20 +73,54 @@ export default class LoginPage extends React.Component{
         console.log("Tentando autenticar...");
         this.setState({isLoading : true});
         const { mail, pwd } = this.state;
-        setTimeout(()=>{
-            firebase
-            .auth()
-            .signInWithEmailAndPassword(mail, pwd)
-            .then((user) => {
-                this.setState({msg : 'Sucesso!'});
-            })
-            .catch((error)=>{
-                this.setState({msg : getMsgByErrorCode(error.code)});
-            })
-            .then(() => {
-                this.setState({isLoading : false});
-            });
-        }, 2000)
+
+        const loginSucess = (user) => {
+            this.setState({msg : 'Conta criada c sucesso'});
+        };
+        const loginError = (error) => {
+            this.setState({msg : this.getMsgByErrorCode(error.code)});
+        };
+        
+        firebase
+        .auth()
+        .signInWithEmailAndPassword(mail, pwd)
+        .then((user) => {
+            this.setState({msg : 'Sucesso!'});
+        })
+        .catch((error)=>{
+            if(error.code == 'auth/user-not-found'){
+                Alert.alert(
+                        'Usuário não encontrado',
+                        'Deseja criar uma conta?',
+                        [
+                            {
+                                text: 'Não',
+                                onPress : () => console.log("Usuário não quis criar conta"),
+                                style: 'cancel' // IOS
+                            }, 
+                            {
+                                text: 'Sim',
+                                onPress : () => {
+                                    firebase
+                                            .auth()
+                                            .createUserWithEmailAndPassword(mail, pwd).
+                                            then(loginSucess)
+                                            .catch(loginError)
+                                }
+                            }
+                        ],
+                        {
+                            cancelable : false
+                        }
+                    ); 
+                        //[]
+            } else {
+                loginError(error)
+            }
+        })
+        .then(() => {
+            this.setState({isLoading : false});
+        });
     }
 
     renderButton(){
@@ -109,7 +153,7 @@ export default class LoginPage extends React.Component{
                     />
                 </FormRow>
                 { this.renderButton() }
-                { renderMsg() }    
+                { this.renderMsg() }    
             </View>
         );
     }
